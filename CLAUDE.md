@@ -46,8 +46,14 @@ For setup from a clean checkout, see `CONTRIBUTING.md` and `README.md`.
 Per-channel acoustic speaker diarization (splitting multiple speakers sharing
 one side of a call — e.g. two people around one mic, or multiple remote
 participants on system audio) runs through `bin/steno-diarize`, a Swift/
-CoreML sidecar (`diarize-sidecar/`) wrapping FluidAudio's Sortformer
-diarizer, invoked from Python (`src.transcriber._run_steno_diarize`) — never
+CoreML sidecar (`diarize-sidecar/`) wrapping FluidAudio's diarizers —
+Sortformer (default) or Nemotron 3, an 8-speaker streaming model selected
+with `STENOAI_DIARIZE_ENGINE=nemotron3` (streaming preset via
+`STENOAI_DIARIZE_NEMOTRON_PRESET`, default `c128-split-w8a8`, the
+100%-ANE-resident split-graph build). The engine env vars flow to the
+sidecar through the inherited environment; the stdout JSON contract is
+identical for both, so Python never branches on engine.
+Invoked from Python (`src.transcriber._run_steno_diarize`) — never
 from Electron, since the batch pipeline is entirely Python-orchestrated.
 Build it *before* `pyinstaller stenoai.spec`, same as `download-ollama.sh`:
 

@@ -1,3 +1,4 @@
+import FluidAudio
 import Foundation
 import Testing
 @testable import DiarizationCore
@@ -15,6 +16,13 @@ struct ModelReadinessTests {
                 "model1/weights/1-weight.bin",
             ]
         }
+        if relativePath.hasPrefix("nemotron-3-diarization/") && relativePath.hasSuffix(".mlmodelc") {
+            return [
+                "coremldata.bin",
+                "model.mil",
+                "weights/weight.bin",
+            ]
+        }
         return [
             "coremldata.bin",
             "metadata.json",
@@ -24,6 +32,11 @@ struct ModelReadinessTests {
     }
 
     private func createCompleteBundle(at bundle: URL, relativePath: String) throws {
+        if !relativePath.hasSuffix(".mlmodelc") {
+            // Root-level assets (e.g. learnable_sil_emb.bin) are plain files.
+            try Data([0x01]).write(to: bundle)
+            return
+        }
         for artifact in expectedArtifacts(for: relativePath) {
             let file = bundle.appendingPathComponent(artifact, isDirectory: false)
             try FileManager.default.createDirectory(
@@ -33,8 +46,14 @@ struct ModelReadinessTests {
         }
     }
 
-    private func createCompleteCache(at root: URL) throws {
-        for relativePath in ModelReadiness.requiredModelRelativePaths {
+    private func createCompleteCache(
+        at root: URL,
+        engine: DiarizationEngine = .sortformer,
+        nemotron3Config: Nemotron3Config? = nil
+    ) throws {
+        for relativePath in ModelReadiness.requiredModelRelativePaths(
+            engine: engine, nemotron3Config: nemotron3Config
+        ) {
             let bundle = root.appendingPathComponent(relativePath, isDirectory: true)
             try createCompleteBundle(at: bundle, relativePath: relativePath)
         }
@@ -51,16 +70,16 @@ struct ModelReadinessTests {
             "coremldata.bin", "metadata.json", "model.mil", "weights/weight.bin",
         ]
         #expect(ModelReadiness.requiredModelRelativePaths == [
-            "sortformer/Sortformer_v2.1.mlmodelc",
-            "sortformer/SortformerNvidiaHigh_v2.mlmodelc",
+            "sortformer/v3/fp16/Sortformer_v2.1.mlmodelc",
+            "sortformer/v3/fp16/SortformerNvidiaHigh_v2.mlmodelc",
             "speaker-diarization/pyannote_segmentation.mlmodelc",
             "speaker-diarization/wespeaker_v2.mlmodelc",
         ])
         #expect(ModelReadiness.requiredArtifactRelativePaths(
-            for: "sortformer/Sortformer_v2.1.mlmodelc"
+            for: "sortformer/v3/fp16/Sortformer_v2.1.mlmodelc"
         ) == sortformerArtifacts)
         #expect(ModelReadiness.requiredArtifactRelativePaths(
-            for: "sortformer/SortformerNvidiaHigh_v2.mlmodelc"
+            for: "sortformer/v3/fp16/SortformerNvidiaHigh_v2.mlmodelc"
         ) == sortformerArtifacts)
         #expect(ModelReadiness.requiredArtifactRelativePaths(
             for: "speaker-diarization/pyannote_segmentation.mlmodelc"
@@ -68,6 +87,74 @@ struct ModelReadinessTests {
         #expect(ModelReadiness.requiredArtifactRelativePaths(
             for: "speaker-diarization/wespeaker_v2.mlmodelc"
         ) == diarizerArtifacts)
+    }
+
+    @Test("Nemotron 3 readiness paths match the Hugging Face repository layout")
+    func nemotron3FolderContract() {
+        // Monolithic bundles ship without metadata.json (verified against
+        // FluidInference/nemotron-3-diarization-coreml: coremldata.bin,
+        // model.mil, weights/weight.bin).
+        #expect(ModelReadiness.requiredArtifactRelativePaths(
+            for: "nemotron-3-diarization/monolithic/Nemotron3Diarizer_fast32.mlmodelc"
+        ) == ["coremldata.bin", "model.mil", "weights/weight.bin"])
+        #expect(ModelReadiness.requiredModelRelativePaths(
+            engine: .nemotron3, nemotron3Config: .fast32
+        ) == [
+            "nemotron-3-diarization/monolithic/Nemotron3Diarizer_fast32.mlmodelc",
+            "nemotron-3-diarization/learnable_sil_emb.bin",
+            "speaker-diarization/pyannote_segmentation.mlmodelc",
+            "speaker-diarization/wespeaker_v2.mlmodelc",
+        ])
+        // Split-graph presets live under split/ and additionally require the
+        // host-side pre-encode projection asset.
+        let split = Nemotron3Config.preset(named: "c128-split-w8a8")
+        #expect(ModelReadiness.requiredModelRelativePaths(
+            engine: .nemotron3, nemotron3Config: split
+        ) == [
+            "nemotron-3-diarization/split/Nemotron3Diarizer_c128_split_w8a8.mlmodelc",
+            "nemotron-3-diarization/learnable_sil_emb.bin",
+            "nemotron-3-diarization/pre_encode_proj_t.bin",
+            "speaker-diarization/pyannote_segmentation.mlmodelc",
+            "speaker-diarization/wespeaker_v2.mlmodelc",
+        ])
+        // An engine without a resolved preset has no required paths of its own.
+        #expect(
+            ModelReadiness.requiredModelRelativePaths(engine: .nemotron3, nemotron3Config: nil)
+                .isEmpty
+        )
+    }
+
+    @Test("A complete Nemotron 3 cache is ready; missing assets are not")
+    func nemotron3CacheReadiness() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("steno-model-nemotron3-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = ModelReadiness.requiredModelRelativePaths(
+            engine: .nemotron3, nemotron3Config: .fast32)
+
+        try createCompleteCache(at: root, engine: .nemotron3, nemotron3Config: .fast32)
+        var result = ModelReadiness.status(
+            cacheDirectory: root, engine: .nemotron3, nemotron3Config: .fast32
+        )
+        #expect(result.ready == true)
+        #expect(result.missingModels.isEmpty)
+        #expect(result.requiredModels == paths)
+
+        // A zero-byte silence embedding is not a usable asset.
+        let asset = root.appendingPathComponent("nemotron-3-diarization/learnable_sil_emb.bin")
+        try Data().write(to: asset)
+        result = ModelReadiness.status(
+            cacheDirectory: root, engine: .nemotron3, nemotron3Config: .fast32
+        )
+        #expect(result.ready == false)
+        #expect(result.missingModels == ["nemotron-3-diarization/learnable_sil_emb.bin"])
+
+        // A complete sortformer cache alone does not satisfy the nemotron3 engine.
+        try createCompleteCache(at: root, engine: .sortformer, nemotron3Config: nil)
+        result = ModelReadiness.status(
+            cacheDirectory: root, engine: .nemotron3, nemotron3Config: .fast32
+        )
+        #expect(result.ready == false)
     }
 
     @Test("A directory in place of a required artifact is not ready")
