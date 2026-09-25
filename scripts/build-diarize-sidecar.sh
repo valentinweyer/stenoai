@@ -29,6 +29,9 @@ BIN_DIR="$(swift build -c release --arch "$ARCH" --show-bin-path)"
 BUILD_BIN="$BIN_DIR/diarize-sidecar"
 test -x "$BUILD_BIN"
 cp "$BUILD_BIN" "$OUT"
+# cp onto an existing file keeps the destination's mode, so check the copy
+# too -- the release workflow ships $OUT, not the build product.
+test -x "$OUT"
 
 # Ad-hoc signature so the binary runs locally; CI re-signs with the Developer
 # ID when packaging the .app bundle.

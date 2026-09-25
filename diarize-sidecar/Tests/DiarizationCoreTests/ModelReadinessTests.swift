@@ -117,10 +117,11 @@ struct ModelReadinessTests {
             "speaker-diarization/pyannote_segmentation.mlmodelc",
             "speaker-diarization/wespeaker_v2.mlmodelc",
         ])
-        // An engine without a resolved preset has no required paths of its own.
+        // An engine without a resolved preset can never be ready: its one
+        // required path is a placeholder that never exists on disk.
         #expect(
             ModelReadiness.requiredModelRelativePaths(engine: .nemotron3, nemotron3Config: nil)
-                .isEmpty
+                == [ModelReadiness.unresolvedNemotron3PresetPath]
         )
     }
 
@@ -149,12 +150,35 @@ struct ModelReadinessTests {
         #expect(result.ready == false)
         #expect(result.missingModels == ["nemotron-3-diarization/learnable_sil_emb.bin"])
 
-        // A complete sortformer cache alone does not satisfy the nemotron3 engine.
+        // A complete sortformer cache alone does not satisfy the nemotron3
+        // engine. Drop every Nemotron file first so the assertion cannot pass
+        // on the empty silence asset above instead.
+        try FileManager.default.removeItem(
+            at: root.appendingPathComponent("nemotron-3-diarization", isDirectory: true)
+        )
         try createCompleteCache(at: root, engine: .sortformer, nemotron3Config: nil)
         result = ModelReadiness.status(
             cacheDirectory: root, engine: .nemotron3, nemotron3Config: .fast32
         )
         #expect(result.ready == false)
+        #expect(result.missingModels == [
+            "nemotron-3-diarization/monolithic/Nemotron3Diarizer_fast32.mlmodelc",
+            "nemotron-3-diarization/learnable_sil_emb.bin",
+        ])
+    }
+
+    @Test("A Nemotron 3 engine without a resolved preset is never ready")
+    func nemotron3WithoutPresetIsNotReady() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("steno-model-nemotron3-nopreset-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try createCompleteCache(at: root, engine: .nemotron3, nemotron3Config: .fast32)
+
+        let result = ModelReadiness.status(
+            cacheDirectory: root, engine: .nemotron3, nemotron3Config: nil
+        )
+        #expect(result.ready == false)
+        #expect(result.missingModels == [ModelReadiness.unresolvedNemotron3PresetPath])
     }
 
     @Test("A directory in place of a required artifact is not ready")

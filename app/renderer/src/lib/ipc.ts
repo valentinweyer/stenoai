@@ -719,7 +719,9 @@ export type GetDiarizationEngineResponse = Result<{
 
 /** A non-default engine is only saved once its models are ready; otherwise
  *  the backend answers success: false with models_ready: false. */
-export type SetDiarizationEngineResponse = Result<{ engine: DiarizationEngine }>;
+export type SetDiarizationEngineResponse =
+  | { success: true; engine: DiarizationEngine }
+  | { success: false; error: string; error_code?: string; models_ready?: false };
 
 export type GetOpenAiAsrConfigResponse = Result<{
   api_url: string;

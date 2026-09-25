@@ -2579,10 +2579,12 @@ class StenoDiarizeEngineEnvTests(unittest.TestCase):
             env = transcriber_mod._steno_diarize_env()
         self.assertEqual(env["STENOAI_DIARIZE_ENGINE"], "nemotron3")
 
-    def test_config_read_failure_leaves_the_sidecar_default(self):
-        with patch("src.config.get_config", side_effect=OSError("unreadable config")):
+    def test_config_read_failure_leaves_the_sidecar_default_and_is_logged(self):
+        with patch("src.config.get_config", side_effect=OSError("unreadable config")), \
+             self.assertLogs(transcriber_mod.logger, level="WARNING") as logs:
             env = transcriber_mod._steno_diarize_env()
         self.assertNotIn("STENOAI_DIARIZE_ENGINE", env)
+        self.assertIn("Sortformer default", logs.output[0])
 
     def test_extra_env_is_merged_and_cloud_credentials_are_stripped(self):
         os.environ["STENOAI_OAI_API_KEY"] = "sk-secret"

@@ -24,6 +24,10 @@ public enum ModelReadiness {
     /// (FluidAudio's `Repo.nemotron3Diarization.folderName`).
     private static let nemotron3CacheFolder = "nemotron-3-diarization"
 
+    /// Placeholder required path for a Nemotron 3 engine without a resolved
+    /// preset -- never present on disk, so such a cache is never ready.
+    static let unresolvedNemotron3PresetPath = "nemotron-3-diarization/<unresolved preset>"
+
     public static let requiredModelRelativePaths: [String] =
         requiredModelRelativePaths(engine: .sortformer, nemotron3Config: nil)
 
@@ -48,7 +52,10 @@ public enum ModelReadiness {
             return sortformerBundles + embeddingBundles
         case .nemotron3:
             guard let config = nemotron3Config else {
-                return []
+                // No resolved preset means no knowable bundle. Report a path
+                // that can never exist so readiness is false; an empty list
+                // would read as "nothing missing" and claim the engine ready.
+                return [unresolvedNemotron3PresetPath]
             }
             let bundle = "\(nemotron3CacheFolder)/\(config.hubSubdirectory)/\(config.modelFileName)"
             var assets = ["\(nemotron3CacheFolder)/\(ModelNames.Nemotron3.silenceEmbeddingFile)"]

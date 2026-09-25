@@ -39,7 +39,10 @@ test('Nemotron 3 is refused while its models are missing; config untouched', asy
   userDataDir,
 }) => {
   const realDirBefore = fileSig(realUserDataDir());
-  const { page } = await launchApp();
+  // A developer's STENOAI_DIARIZE_MODEL_DIR pointing at a populated cache
+  // would make Nemotron 3 ready and the refusal below vacuous; the sidecar
+  // treats an empty value as unset, so the isolated user-data cache is used.
+  const { page } = await launchApp({ env: { STENOAI_DIARIZE_MODEL_DIR: '' } });
 
   const res = await page.evaluate(() =>
     (window as StenoWindow).stenoai.diarizationEngine.set('nemotron3'),

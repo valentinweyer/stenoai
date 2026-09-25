@@ -57,7 +57,7 @@ turns it into the sidecar's `STENOAI_DIARIZE_ENGINE` for every invocation
 `STENOAI_DIARIZE_ENGINE` still wins as a developer override. Because
 meeting processing never downloads models, `set-diarization-engine` refuses
 a non-default engine until its models are ready; the renderer prepares them
-first via `prepare-speaker-models --engine`. The stdout JSON contract is
+first via `prepare-speaker-models --engine nemotron3`. The stdout JSON contract is
 identical for both engines, so Python never branches on engine.
 Invoked from Python (`src.transcriber._run_steno_diarize`) — never
 from Electron, since the batch pipeline is entirely Python-orchestrated.

@@ -238,8 +238,15 @@ def _steno_diarize_env(
         try:
             from src.config import get_config
             engine_env["STENOAI_DIARIZE_ENGINE"] = get_config().get_diarization_engine()
-        except Exception:
-            pass
+        except Exception as exc:
+            # get_config() already recovers from a corrupt file, so anything
+            # landing here is unexpected -- log it, because the fallback
+            # silently diarizes with Sortformer whatever the user picked.
+            logger.warning(
+                "Could not read the diarization engine setting (%s); "
+                "steno-diarize will use its Sortformer default",
+                type(exc).__name__,
+            )
     return _non_asr_subprocess_env({**engine_env, **(extra_env or {})})
 
 
