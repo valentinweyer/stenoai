@@ -322,6 +322,7 @@ function install({ ipcMain }) {
     remoteUrl: '', // remote Ollama URL (empty = not configured)
     autoInstallWhenIdle: true, // idle auto-install toggle (config default on)
     transcriptionEngine: process.env.STENOAI_E2E_MOCK_ENGINE || 'parakeet',
+    diarizationEngine: 'sortformer',
     openAiAsrUrl: 'https://api.openai.com/v1',
     openAiAsrModel: 'whisper-1',
     openAiAsrKeySet: process.env.STENOAI_E2E_OAI_ASR_KEY_SET === '1',
@@ -644,6 +645,16 @@ function install({ ipcMain }) {
     }),
     'set-transcription-engine': async (_event, engine) => {
       state.transcriptionEngine = engine;
+      return { success: true, engine };
+    },
+
+    'get-diarization-engine': async () => ({
+      success: true,
+      engine: state.diarizationEngine,
+      valid_engines: ['sortformer', 'nemotron3'],
+    }),
+    'set-diarization-engine': async (_event, engine) => {
+      state.diarizationEngine = engine;
       return { success: true, engine };
     },
 

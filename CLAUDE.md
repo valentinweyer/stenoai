@@ -47,12 +47,18 @@ Per-channel acoustic speaker diarization (splitting multiple speakers sharing
 one side of a call — e.g. two people around one mic, or multiple remote
 participants on system audio) runs through `bin/steno-diarize`, a Swift/
 CoreML sidecar (`diarize-sidecar/`) wrapping FluidAudio's diarizers —
-Sortformer (default) or Nemotron 3, an 8-speaker streaming model selected
-with `STENOAI_DIARIZE_ENGINE=nemotron3` (streaming preset via
-`STENOAI_DIARIZE_NEMOTRON_PRESET`, default `c128-split-w8a8`, the
-100%-ANE-resident split-graph build). The engine env vars flow to the
-sidecar through the inherited environment; the stdout JSON contract is
-identical for both, so Python never branches on engine.
+Sortformer (default) or Nemotron 3, an 8-speaker streaming model (streaming
+preset via `STENOAI_DIARIZE_NEMOTRON_PRESET`, default `c128-split-w8a8`, the
+100%-ANE-resident split-graph build). The user picks the engine in
+Settings -> Transcribe ("Speaker detection"), persisted as the
+`diarization_engine` config key; `src.transcriber._steno_diarize_env()`
+turns it into the sidecar's `STENOAI_DIARIZE_ENGINE` for every invocation
+(`diarize`, `model-status`, `prepare-models`), and an already-set
+`STENOAI_DIARIZE_ENGINE` still wins as a developer override. Because
+meeting processing never downloads models, `set-diarization-engine` refuses
+a non-default engine until its models are ready; the renderer prepares them
+first via `prepare-speaker-models --engine`. The stdout JSON contract is
+identical for both engines, so Python never branches on engine.
 Invoked from Python (`src.transcriber._run_steno_diarize`) — never
 from Electron, since the batch pipeline is entirely Python-orchestrated.
 Build it *before* `pyinstaller stenoai.spec`, same as `download-ollama.sh`:
@@ -134,7 +140,10 @@ overrides an agent's own test-level defaults.
     ASR, no real model), and the calendar/notifications pair `calendar-auth.t2`
     (auth-status from a local token file + auto-detect-meetings toggle) /
     `notifications.t2` (the notifications_enabled toggle gating the note-ready /
-    silence notifications via the `shown` signal), and the onboarding spec
+    silence notifications via the `shown` signal), `diarization-engine.t2` (the
+    Speaker detection setting: Sortformer default, a non-default engine refused
+    while its models are missing, IPC allowlist; its UI half, the
+    download-then-save picker, is `diarization-engine.t1`), and the onboarding spec
     `setup-check.t2` (the setup-wizard allGood + checks contract) (all model-free,
     run in `t2-macos` /
     `t2-windows`); `transcription-pipeline.t2` and `honest-failure.t2` (tagged

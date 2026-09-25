@@ -21,7 +21,7 @@ import { MetaIcon } from '@/components/ui/meta-icon';
 import { QwenIcon } from '@/components/ui/qwen-icon';
 import { cn, isMac } from '@/lib/utils';
 import { t } from '@/i18n';
-import type { AiProvider, CloudProvider, TranscriptionEngine } from '@/lib/ipc';
+import type { AiProvider, CloudProvider, DiarizationEngine, TranscriptionEngine } from '@/lib/ipc';
 import {
   useAiProvider,
   useSetAiProvider,
@@ -38,6 +38,7 @@ import {
 import {
   useCurrentModel,
   useDeleteModel,
+  useDiarizationEngine,
   useModels,
   useOpenAiAsrConfig,
   useParakeetModels,
@@ -46,6 +47,7 @@ import {
   usePullWhisperModel,
   useSetActiveTranscription,
   useSetCurrentModel,
+  useSetDiarizationEngine,
   useSetOpenAiAsrConfig,
   useSetOpenAiAsrKey,
   useSwitchToFasterBuild,
@@ -157,11 +159,93 @@ function TranscriptionSection() {
       </SettingRow>
 
       {isMac && (
-        <SpeakerIdentificationSetting />
+        <>
+          <DiarizationEngineSetting />
+          <SpeakerIdentificationSetting />
+        </>
       )}
 
       <TranscriptionModelList />
     </div>
+  );
+}
+
+// The name is what the trigger shows once picked; the tagline only appears
+// in the open list (SelectItem renders `description` outside ItemText), so
+// the compact trigger never has to fit the speaker count.
+const DIARIZATION_ENGINE_OPTIONS: {
+  value: DiarizationEngine;
+  name: () => string;
+  tagline: () => string;
+}[] = [
+  {
+    value: 'sortformer',
+    name: () => t('settings.ai.diarization.sortformerName'),
+    tagline: () => t('settings.ai.diarization.sortformerTagline'),
+  },
+  {
+    value: 'nemotron3',
+    name: () => t('settings.ai.diarization.nemotron3Name'),
+    tagline: () => t('settings.ai.diarization.nemotron3Tagline'),
+  },
+];
+
+/**
+ * Sortformer vs. Nemotron 3 speaker-diarization picker (macOS only -- the
+ * steno-diarize sidecar does not exist elsewhere). Picking Nemotron 3
+ * downloads its models before the choice is saved (see
+ * useSetDiarizationEngine); the trigger stays disabled and shows the pending
+ * target for the whole download so a second pick cannot race it. A failed
+ * download leaves the previous engine selected and says so.
+ */
+export function DiarizationEngineSetting() {
+  const engine = useDiarizationEngine();
+  const setEngine = useSetDiarizationEngine();
+  const pending = setEngine.isPending;
+  const value = pending ? setEngine.variables : (engine.data ?? 'sortformer');
+  let description = t('settings.ai.diarization.description');
+  if (pending && setEngine.variables === 'nemotron3') {
+    description = t('settings.ai.diarization.downloading');
+  } else if (setEngine.isError) {
+    description = t('settings.ai.diarization.saveError');
+  }
+  return (
+    <SettingRow
+      label={t('settings.ai.diarization.label')}
+      description={description}
+      descriptionId="diarization-engine-description"
+    >
+      <div className="flex items-center gap-2">
+        {pending && (
+          <Loader2
+            className="h-4 w-4 animate-spin"
+            style={{ color: 'var(--fg-2)' }}
+            aria-hidden="true"
+          />
+        )}
+        <Select
+          value={value}
+          onValueChange={(v) => setEngine.mutate(v as DiarizationEngine)}
+          disabled={engine.data === undefined || pending}
+        >
+          <SelectTrigger
+            className={COMPACT_TRIGGER}
+            aria-label={t('settings.ai.diarization.label')}
+            aria-describedby="diarization-engine-description"
+            data-testid="diarization-engine-select"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DIARIZATION_ENGINE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value} description={option.tagline()}>
+                {option.name()}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </SettingRow>
   );
 }
 

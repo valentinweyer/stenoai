@@ -1,12 +1,28 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+const diarization = vi.hoisted(() => ({
+  engine: { data: 'sortformer' as string | undefined },
+  mutation: {
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    variables: undefined as string | undefined,
+  },
+}));
 
 vi.mock('@/hooks/useSettings', () => ({
   useIdentityMatchingEnabledSetting: () => ({ data: false }),
   useSetIdentityMatchingEnabled: () => ({ mutate: vi.fn() }),
 }));
 
-import { SpeakerIdentificationSetting } from './AiTab';
+vi.mock('@/hooks/useModels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useModels')>()),
+  useDiarizationEngine: () => diarization.engine,
+  useSetDiarizationEngine: () => diarization.mutation,
+}));
+
+import { DiarizationEngineSetting, SpeakerIdentificationSetting } from './AiTab';
 
 describe('Speaker identification setting', () => {
   test('describes itself to assistive technology', () => {
@@ -22,5 +38,52 @@ describe('Speaker identification setting', () => {
     const description = document.getElementById(descriptionId!);
     expect(description).not.toBeNull();
     expect(description!.textContent?.trim()).toBe('Optional and off by default.');
+  });
+});
+
+describe('Speaker detection setting', () => {
+  beforeEach(() => {
+    diarization.engine = { data: 'sortformer' };
+    diarization.mutation = {
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      variables: undefined,
+    };
+  });
+
+  function describedText() {
+    const trigger = screen.getByRole('combobox', { name: 'Speaker detection' });
+    const descriptionId = trigger.getAttribute('aria-describedby');
+    expect(descriptionId).toBe('diarization-engine-description');
+    return { trigger, text: document.getElementById(descriptionId!)?.textContent ?? '' };
+  }
+
+  test('shows the saved engine and describes itself', () => {
+    render(<DiarizationEngineSetting />);
+
+    const { trigger, text } = describedText();
+    expect(trigger.textContent).toContain('Standard');
+    expect((trigger as HTMLButtonElement).disabled).toBe(false);
+    expect(text.trim().length).toBeGreaterThan(0);
+  });
+
+  test('locks the picker and says so while Nemotron 3 downloads', () => {
+    diarization.mutation = { ...diarization.mutation, isPending: true, variables: 'nemotron3' };
+    render(<DiarizationEngineSetting />);
+
+    const { trigger, text } = describedText();
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    expect(trigger.textContent).toContain('Nemotron 3');
+    expect(text).toContain('Downloading');
+  });
+
+  test('reports a failed switch against the still-active engine', () => {
+    diarization.mutation = { ...diarization.mutation, isError: true };
+    render(<DiarizationEngineSetting />);
+
+    const { trigger, text } = describedText();
+    expect(trigger.textContent).toContain('Standard');
+    expect(text).toContain('previous model is still active');
   });
 });

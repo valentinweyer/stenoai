@@ -1,6 +1,12 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ipc, type ListedModel, type TranscriptionEngine, type ParakeetPullProgressEvent } from '@/lib/ipc';
+import {
+  ipc,
+  type DiarizationEngine,
+  type ListedModel,
+  type TranscriptionEngine,
+  type ParakeetPullProgressEvent,
+} from '@/lib/ipc';
 import { unwrap } from '@/lib/result';
 import { PARAKEET_LANGUAGE_CODES } from '@/lib/transcription-languages';
 
@@ -25,6 +31,11 @@ export const parakeetKeys = {
 export const transcriptionEngineKeys = {
   all: ['transcriptionEngine'] as const,
   current: () => [...transcriptionEngineKeys.all, 'current'] as const,
+};
+
+export const diarizationEngineKeys = {
+  all: ['diarizationEngine'] as const,
+  current: () => [...diarizationEngineKeys.all, 'current'] as const,
 };
 
 export const openaiAsrKeys = {
@@ -549,6 +560,36 @@ export function useTranscriptionEngine() {
     queryFn: async (): Promise<TranscriptionEngine> => {
       const raw = unwrap(await ipc().transcriptionEngine.get());
       return raw.engine;
+    },
+  });
+}
+
+export function useDiarizationEngine() {
+  return useQuery({
+    queryKey: diarizationEngineKeys.current(),
+    queryFn: async (): Promise<DiarizationEngine> =>
+      unwrap(await ipc().diarizationEngine.get()).engine,
+  });
+}
+
+/**
+ * Switch the macOS speaker-diarization engine. Meeting processing never
+ * downloads models, so a non-default engine's models are prepared first and
+ * the choice is only saved once they are ready -- the backend refuses the
+ * save otherwise, so a failed download leaves the previous engine active.
+ */
+export function useSetDiarizationEngine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (engine: DiarizationEngine): Promise<DiarizationEngine> => {
+      if (engine !== 'sortformer') {
+        const prepared = unwrap(await ipc().setup.speakerModels(engine));
+        if (!prepared.ready) throw new Error('Speaker detection models are not ready');
+      }
+      return unwrap(await ipc().diarizationEngine.set(engine)).engine;
+    },
+    onSuccess: (engine) => {
+      qc.setQueryData(diarizationEngineKeys.current(), engine);
     },
   });
 }

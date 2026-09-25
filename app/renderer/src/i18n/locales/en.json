@@ -15,5 +15,13 @@
   "settings.ai.cloudAsr.keyEmptyDescription": "Stored encrypted on your device - never written to config or sent anywhere except your chosen endpoint.",
   "settings.ai.cloudAsr.apiUrlPlaceholder": "https://api.openai.com/v1",
   "settings.ai.cloudAsr.modelPlaceholder": "whisper-1",
-  "settings.ai.cloudAsr.apiKeyPlaceholder": "sk-…"
+  "settings.ai.cloudAsr.apiKeyPlaceholder": "sk-…",
+  "settings.ai.diarization.label": "Speaker detection",
+  "settings.ai.diarization.description": "Tells apart the people sharing one mic or one side of a call. Runs on your device.",
+  "settings.ai.diarization.downloading": "Downloading the Nemotron 3 models (about 95 MB). This can take a few minutes.",
+  "settings.ai.diarization.saveError": "Could not switch the speaker detection model. The previous model is still active.",
+  "settings.ai.diarization.sortformerName": "Standard",
+  "settings.ai.diarization.sortformerTagline": "Up to 4 speakers",
+  "settings.ai.diarization.nemotron3Name": "Nemotron 3",
+  "settings.ai.diarization.nemotron3Tagline": "Up to 8 speakers — 95 MB download"
 }

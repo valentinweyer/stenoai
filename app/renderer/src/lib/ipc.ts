@@ -709,6 +709,18 @@ export type GetTranscriptionEngineResponse = Result<{
   valid_engines: TranscriptionEngine[];
 }>;
 
+/** macOS speaker-diarization engine (Config.VALID_DIARIZATION_ENGINES). */
+export type DiarizationEngine = 'sortformer' | 'nemotron3';
+
+export type GetDiarizationEngineResponse = Result<{
+  engine: DiarizationEngine;
+  valid_engines: DiarizationEngine[];
+}>;
+
+/** A non-default engine is only saved once its models are ready; otherwise
+ *  the backend answers success: false with models_ready: false. */
+export type SetDiarizationEngineResponse = Result<{ engine: DiarizationEngine }>;
+
 export type GetOpenAiAsrConfigResponse = Result<{
   api_url: string;
   api_key_set: boolean;
@@ -1049,8 +1061,9 @@ export interface StenoaiBridge {
     check: RequestFn<[], SetupCheckResponse>;
     ollamaAndModel: RequestFn<[], Result<Record<string, unknown>>>;
     parakeet: RequestFn<[], Result<Record<string, unknown>>>;
-    speakerModelsStatus: RequestFn<[], SpeakerModelStatusResponse>;
-    speakerModels: RequestFn<[], SpeakerModelStatusResponse>;
+    /** Without an engine, reports/prepares the saved diarization engine's models. */
+    speakerModelsStatus: RequestFn<[engine?: DiarizationEngine], SpeakerModelStatusResponse>;
+    speakerModels: RequestFn<[engine?: DiarizationEngine], SpeakerModelStatusResponse>;
     test: RequestFn<[], Result<Record<string, unknown>>>;
     triggerWizard: RequestFn<[], Result<Record<string, unknown>>>;
   };
@@ -1261,6 +1274,11 @@ export interface StenoaiBridge {
   transcriptionEngine: {
     get: RequestFn<[], GetTranscriptionEngineResponse>;
     set: RequestFn<[engine: TranscriptionEngine], Result<{ engine: TranscriptionEngine }>>;
+  };
+
+  diarizationEngine: {
+    get: RequestFn<[], GetDiarizationEngineResponse>;
+    set: RequestFn<[engine: DiarizationEngine], SetDiarizationEngineResponse>;
   };
 
   openaiAsr: {
