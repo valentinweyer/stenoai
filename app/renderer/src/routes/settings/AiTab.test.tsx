@@ -82,7 +82,7 @@ describe('Speaker detection setting', () => {
   });
 
   test('reports a failed switch against the still-active engine', () => {
-    diarization.mutation = { ...diarization.mutation, isError: true };
+    diarization.mutation = { ...diarization.mutation, isError: true, variables: 'nemotron3' };
     render(<DiarizationEngineSetting />);
 
     const { trigger, text } = describedText();
@@ -95,7 +95,7 @@ describe('Speaker detection setting', () => {
     render(<DiarizationEngineSetting />);
 
     const { text } = describedText();
-    expect(text).toContain('not downloaded');
+    expect(text).toContain('need to be downloaded');
     const download = screen.getByRole('button', { name: 'Download' });
     expect(download.getAttribute('aria-describedby')).toBe('diarization-engine-description');
     fireEvent.click(download);
@@ -121,5 +121,16 @@ describe('Speaker detection setting', () => {
     const { text } = describedText();
     expect(text).toContain('Downloading the speaker detection models');
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+  });
+
+  test('a failed Download says the download failed and keeps the button', () => {
+    diarization.modelsReady = { data: false };
+    diarization.mutation = { ...diarization.mutation, isError: true, variables: 'sortformer' };
+    render(<DiarizationEngineSetting />);
+
+    const { text } = describedText();
+    expect(text).toContain('Could not download the models');
+    expect(text).not.toContain('previous model');
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
   });
 });

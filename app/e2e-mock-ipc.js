@@ -324,9 +324,11 @@ function install({ ipcMain }) {
     transcriptionEngine: process.env.STENOAI_E2E_MOCK_ENGINE || 'parakeet',
     diarizationEngine: 'sortformer',
     // STENOAI_E2E_SPEAKER_MODELS_MISSING=1 simulates an upgraded install whose
-    // speaker models predate the current cache layout: status reports them
-    // missing until setup-speaker-models prepares them.
-    speakerModelsMissing: process.env.STENOAI_E2E_SPEAKER_MODELS_MISSING === '1',
+    // speaker models predate the current cache layout: every engine reports
+    // its models missing until setup-speaker-models prepares THAT engine.
+    speakerModelsMissing: new Set(
+      process.env.STENOAI_E2E_SPEAKER_MODELS_MISSING === '1' ? ['sortformer', 'nemotron3'] : [],
+    ),
     openAiAsrUrl: 'https://api.openai.com/v1',
     openAiAsrModel: 'whisper-1',
     openAiAsrKeySet: process.env.STENOAI_E2E_OAI_ASR_KEY_SET === '1',
@@ -1009,8 +1011,10 @@ function install({ ipcMain }) {
       }
       return { success: true, message: 'Parakeet model ready' };
     },
-    'speaker-model-status': async () => (
-      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1' || state.speakerModelsMissing
+    // Like the real CLI, no engine argument means the saved engine.
+    'speaker-model-status': async (_event, engine) => (
+      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1' ||
+      state.speakerModelsMissing.has(engine || state.diarizationEngine)
         ? {
             success: true,
             ready: false,
@@ -1026,11 +1030,11 @@ function install({ ipcMain }) {
             missing_models: [],
           }
     ),
-    'setup-speaker-models': async () => {
+    'setup-speaker-models': async (_event, engine) => {
       if (process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1') {
         return { success: false, error: 'synthetic model setup failure' };
       }
-      state.speakerModelsMissing = false;
+      state.speakerModelsMissing.delete(engine || state.diarizationEngine);
       return {
         success: true,
         ready: true,

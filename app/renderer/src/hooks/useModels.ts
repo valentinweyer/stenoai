@@ -604,21 +604,32 @@ export function useDiarizationModelsReady(engine: DiarizationEngine | undefined)
 export function useSetDiarizationEngine() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (engine: DiarizationEngine): Promise<DiarizationEngine> => {
+    mutationFn: async (
+      engine: DiarizationEngine,
+    ): Promise<{ engine: DiarizationEngine; modelsConfirmed: boolean }> => {
       const status = await ipc().setup.speakerModelsStatus(engine);
       // A failed status check (no sidecar in a dev build) must not block the
       // Sortformer default the backend accepts without models; Nemotron 3
       // still goes through prepare, which fails loudly in that case.
       const missing = status.success ? !status.ready : engine !== 'sortformer';
+      let modelsConfirmed = status.success && status.ready;
       if (missing) {
         const prepared = unwrap(await ipc().setup.speakerModels(engine));
         if (!prepared.ready) throw new Error('Speaker detection models are not ready');
+        modelsConfirmed = true;
       }
-      return unwrap(await ipc().diarizationEngine.set(engine)).engine;
+      const saved = unwrap(await ipc().diarizationEngine.set(engine)).engine;
+      return { engine: saved, modelsConfirmed };
     },
-    onSuccess: (engine) => {
+    onSuccess: ({ engine, modelsConfirmed }) => {
       qc.setQueryData(diarizationEngineKeys.current(), engine);
-      qc.setQueryData(diarizationEngineKeys.modelsReady(engine), true);
+      // Only cache readiness a status check or download actually confirmed;
+      // a Sortformer save past an unavailable sidecar proves nothing.
+      if (modelsConfirmed) {
+        qc.setQueryData(diarizationEngineKeys.modelsReady(engine), true);
+      } else {
+        void qc.invalidateQueries({ queryKey: diarizationEngineKeys.modelsReady(engine) });
+      }
     },
   });
 }

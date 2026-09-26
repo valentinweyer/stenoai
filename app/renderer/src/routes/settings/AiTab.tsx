@@ -219,7 +219,12 @@ export function DiarizationEngineSetting() {
         ? t('settings.ai.diarization.downloading')
         : t('settings.ai.diarization.downloadingStandard');
   } else if (setEngine.isError) {
-    description = t('settings.ai.diarization.saveError');
+    // A failed Download re-prepares the engine already saved -- nothing was
+    // switched, so "the previous model is still active" would be wrong.
+    description =
+      setEngine.variables === engine.data
+        ? t('settings.ai.diarization.downloadError')
+        : t('settings.ai.diarization.saveError');
   } else if (needsDownload) {
     description = t('settings.ai.diarization.modelsMissing');
   }

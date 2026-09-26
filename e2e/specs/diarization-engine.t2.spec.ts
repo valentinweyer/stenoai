@@ -21,16 +21,10 @@ type SpeakerModelStatus = {
   missing_models?: string[];
   error?: string;
 };
-type SetupCheck = {
-  success: boolean;
-  allGood?: boolean;
-  checks?: { name: string; ok: boolean; status: string; detail: string }[];
-};
 
 type Bridge = {
   setup: {
     speakerModelsStatus: (engine?: string) => Promise<SpeakerModelStatus>;
-    check: () => Promise<SetupCheck>;
   };
   diarizationEngine: {
     get: () => Promise<{ success: boolean; engine?: string; valid_engines?: string[] }>;
@@ -144,9 +138,12 @@ test('a Sortformer cache from before the FluidAudio 0.17 upgrade reads as missin
   const status = await page.evaluate(() =>
     (window as StenoWindow).stenoai.setup.speakerModelsStatus(),
   );
+  // Skip ONLY when the sidecar is genuinely absent (a dev build without it).
+  // Any other failure -- a crashing or unparseable bundled sidecar -- must
+  // fail here rather than silently drop this regression coverage.
   test.skip(
-    !status.success,
-    `steno-diarize is not bundled in this backend build (${status.error ?? 'unavailable'})`,
+    status.error === 'Speaker diarization is unavailable on this system',
+    'steno-diarize is not bundled in this backend build',
   );
   // Only the two re-laid-out Sortformer bundles are missing -- this is what
   // Settings -> Speaker detection turns into a Download action.
@@ -155,11 +152,7 @@ test('a Sortformer cache from before the FluidAudio 0.17 upgrade reads as missin
     'sortformer/v3/fp16/Sortformer_v2.1.mlmodelc',
     'sortformer/v3/fp16/SortformerNvidiaHigh_v2.mlmodelc',
   ]);
-
-  // Speaker models stay optional for setup: the stale cache is a non-failing
-  // warning, so allGood is unaffected and onboarding never re-runs for it --
-  // which is why the Settings row is the visible repair path.
-  const setup = await page.evaluate(() => (window as StenoWindow).stenoai.setup.check());
-  const speaker = setup.checks?.find((c) => c.name.includes('speaker'));
-  expect(speaker).toMatchObject({ ok: true, status: 'warn' });
+  // setup-check keeps missing speaker models a non-failing warning; that is
+  // pinned with its host probes mocked in tests/test_setup_check_cli.py
+  // (test_missing_optional_speaker_models_are_a_warning), not here.
 });

@@ -24,7 +24,8 @@
   "settings.ai.diarization.sortformerTagline": "Up to 4 speakers",
   "settings.ai.diarization.nemotron3Name": "Nemotron 3",
   "settings.ai.diarization.nemotron3Tagline": "Up to 8 speakers — 95 MB download",
-  "settings.ai.diarization.modelsMissing": "The models for this option are not downloaded. Until they are, transcripts only label speakers as You and Others.",
+  "settings.ai.diarization.modelsMissing": "The models for this option need to be downloaded. Until then, transcripts only label speakers as You and Others.",
   "settings.ai.diarization.downloadAction": "Download",
-  "settings.ai.diarization.downloadingStandard": "Downloading the speaker detection models. This can take a few minutes."
+  "settings.ai.diarization.downloadingStandard": "Downloading the speaker detection models. This can take a few minutes.",
+  "settings.ai.diarization.downloadError": "Could not download the models. Check your connection and try again."
 }

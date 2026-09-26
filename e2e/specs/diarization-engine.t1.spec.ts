@@ -71,11 +71,15 @@ test('an upgraded install is offered a download for its missing Standard models'
   await openAiSettings(page);
 
   const description = page.locator('#diarization-engine-description');
-  await expect(description).toContainText('not downloaded');
+  const trigger = page.getByTestId('diarization-engine-select');
+  await expect(description).toContainText('need to be downloaded');
   const download = page.getByTestId('diarization-models-download');
   await download.click();
 
+  // The button also hides the moment the download STARTS, so wait for the
+  // settled state: picker enabled again and the default description back.
+  await expect(trigger).toBeEnabled();
+  await expect(description).toContainText('Runs on your device');
   await expect(download).toHaveCount(0);
-  await expect(description).not.toContainText('not downloaded');
-  await expect(page.getByTestId('diarization-engine-select')).toContainText('Standard');
+  await expect(trigger).toContainText('Standard');
 });

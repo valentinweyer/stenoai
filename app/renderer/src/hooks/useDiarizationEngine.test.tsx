@@ -164,6 +164,9 @@ describe('useSetDiarizationEngine', () => {
 
     expect(h.speakerModels).not.toHaveBeenCalled();
     expect(h.setEngine).toHaveBeenCalledWith('sortformer');
+    // Nothing confirmed the models, so readiness must stay unknown, not true.
+    await waitFor(() => expect(result.current.ready.isFetching).toBe(false));
+    expect(result.current.ready.data).toBeNull();
   });
 });
 
