@@ -36,6 +36,8 @@ export const transcriptionEngineKeys = {
 export const diarizationEngineKeys = {
   all: ['diarizationEngine'] as const,
   current: () => [...diarizationEngineKeys.all, 'current'] as const,
+  modelsReady: (engine: DiarizationEngine) =>
+    [...diarizationEngineKeys.all, 'modelsReady', engine] as const,
 };
 
 export const openaiAsrKeys = {
@@ -573,16 +575,42 @@ export function useDiarizationEngine() {
 }
 
 /**
- * Switch the macOS speaker-diarization engine. Meeting processing never
- * downloads models, so a non-default engine's models are prepared first and
- * the choice is only saved once they are ready -- the backend refuses the
- * save otherwise, so a failed download leaves the previous engine active.
+ * Whether `engine`'s speaker-detection models are present. `null` when the
+ * sidecar cannot answer (not bundled, or the check failed) -- the Settings
+ * row then stays quiet rather than offering a download that cannot run.
+ * Read-only: it never downloads anything.
+ */
+export function useDiarizationModelsReady(engine: DiarizationEngine | undefined) {
+  return useQuery({
+    queryKey: diarizationEngineKeys.modelsReady(engine ?? 'sortformer'),
+    enabled: engine !== undefined,
+    queryFn: async (): Promise<boolean | null> => {
+      const status = await ipc().setup.speakerModelsStatus(engine);
+      return status.success ? status.ready : null;
+    },
+  });
+}
+
+/**
+ * Switch the macOS speaker-diarization engine, or re-prepare the current one.
+ * Meeting processing never downloads models, so whenever the target engine's
+ * models are missing they are downloaded first -- for Nemotron 3, and also for
+ * Sortformer, whose cache moved to FluidAudio 0.17's `sortformer/v3/fp16/`
+ * layout and must be re-downloaded by anyone upgrading from an older build.
+ * The choice is only saved once the models are ready; the backend refuses a
+ * non-default engine otherwise, so a failed download leaves the previous
+ * engine active.
  */
 export function useSetDiarizationEngine() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (engine: DiarizationEngine): Promise<DiarizationEngine> => {
-      if (engine !== 'sortformer') {
+      const status = await ipc().setup.speakerModelsStatus(engine);
+      // A failed status check (no sidecar in a dev build) must not block the
+      // Sortformer default the backend accepts without models; Nemotron 3
+      // still goes through prepare, which fails loudly in that case.
+      const missing = status.success ? !status.ready : engine !== 'sortformer';
+      if (missing) {
         const prepared = unwrap(await ipc().setup.speakerModels(engine));
         if (!prepared.ready) throw new Error('Speaker detection models are not ready');
       }
@@ -590,6 +618,7 @@ export function useSetDiarizationEngine() {
     },
     onSuccess: (engine) => {
       qc.setQueryData(diarizationEngineKeys.current(), engine);
+      qc.setQueryData(diarizationEngineKeys.modelsReady(engine), true);
     },
   });
 }

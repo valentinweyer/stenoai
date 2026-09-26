@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 const diarization = vi.hoisted(() => ({
   engine: { data: 'sortformer' as string | undefined },
+  modelsReady: { data: true as boolean | null | undefined },
   mutation: {
     mutate: vi.fn(),
     isPending: false,
@@ -19,6 +20,7 @@ vi.mock('@/hooks/useSettings', () => ({
 vi.mock('@/hooks/useModels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks/useModels')>()),
   useDiarizationEngine: () => diarization.engine,
+  useDiarizationModelsReady: () => diarization.modelsReady,
   useSetDiarizationEngine: () => diarization.mutation,
 }));
 
@@ -44,6 +46,7 @@ describe('Speaker identification setting', () => {
 describe('Speaker detection setting', () => {
   beforeEach(() => {
     diarization.engine = { data: 'sortformer' };
+    diarization.modelsReady = { data: true };
     diarization.mutation = {
       mutate: vi.fn(),
       isPending: false,
@@ -85,5 +88,38 @@ describe('Speaker detection setting', () => {
     const { trigger, text } = describedText();
     expect(trigger.textContent).toContain('Standard');
     expect(text).toContain('previous model is still active');
+  });
+
+  test('offers a download when the saved engine\'s models are missing', () => {
+    diarization.modelsReady = { data: false };
+    render(<DiarizationEngineSetting />);
+
+    const { text } = describedText();
+    expect(text).toContain('not downloaded');
+    const download = screen.getByRole('button', { name: 'Download' });
+    expect(download.getAttribute('aria-describedby')).toBe('diarization-engine-description');
+    fireEvent.click(download);
+    expect(diarization.mutation.mutate).toHaveBeenCalledWith('sortformer');
+  });
+
+  test('offers no download when readiness is unknown or the models are present', () => {
+    diarization.modelsReady = { data: null };
+    const { unmount } = render(<DiarizationEngineSetting />);
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    unmount();
+
+    diarization.modelsReady = { data: true };
+    render(<DiarizationEngineSetting />);
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+  });
+
+  test('describes a Standard download while it runs', () => {
+    diarization.modelsReady = { data: false };
+    diarization.mutation = { ...diarization.mutation, isPending: true, variables: 'sortformer' };
+    render(<DiarizationEngineSetting />);
+
+    const { text } = describedText();
+    expect(text).toContain('Downloading the speaker detection models');
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
   });
 });

@@ -323,6 +323,10 @@ function install({ ipcMain }) {
     autoInstallWhenIdle: true, // idle auto-install toggle (config default on)
     transcriptionEngine: process.env.STENOAI_E2E_MOCK_ENGINE || 'parakeet',
     diarizationEngine: 'sortformer',
+    // STENOAI_E2E_SPEAKER_MODELS_MISSING=1 simulates an upgraded install whose
+    // speaker models predate the current cache layout: status reports them
+    // missing until setup-speaker-models prepares them.
+    speakerModelsMissing: process.env.STENOAI_E2E_SPEAKER_MODELS_MISSING === '1',
     openAiAsrUrl: 'https://api.openai.com/v1',
     openAiAsrModel: 'whisper-1',
     openAiAsrKeySet: process.env.STENOAI_E2E_OAI_ASR_KEY_SET === '1',
@@ -1006,7 +1010,7 @@ function install({ ipcMain }) {
       return { success: true, message: 'Parakeet model ready' };
     },
     'speaker-model-status': async () => (
-      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1'
+      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1' || state.speakerModelsMissing
         ? {
             success: true,
             ready: false,
@@ -1022,17 +1026,19 @@ function install({ ipcMain }) {
             missing_models: [],
           }
     ),
-    'setup-speaker-models': async () => (
-      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1'
-        ? { success: false, error: 'synthetic model setup failure' }
-        : {
-            success: true,
-            ready: true,
-            cache_directory: '/tmp/e2e/models/speaker-diarization',
-            required_models: [],
-            missing_models: [],
-          }
-    ),
+    'setup-speaker-models': async () => {
+      if (process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1') {
+        return { success: false, error: 'synthetic model setup failure' };
+      }
+      state.speakerModelsMissing = false;
+      return {
+        success: true,
+        ready: true,
+        cache_directory: '/tmp/e2e/models/speaker-diarization',
+        required_models: [],
+        missing_models: [],
+      };
+    },
     'setup-ollama-and-model': async (event) => {
       if (process.env.STENOAI_E2E_SETUP_PROGRESS === '1') {
         const wc = event && event.sender;

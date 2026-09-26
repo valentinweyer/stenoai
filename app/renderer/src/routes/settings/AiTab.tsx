@@ -39,6 +39,7 @@ import {
   useCurrentModel,
   useDeleteModel,
   useDiarizationEngine,
+  useDiarizationModelsReady,
   useModels,
   useOpenAiAsrConfig,
   useParakeetModels,
@@ -192,22 +193,35 @@ const DIARIZATION_ENGINE_OPTIONS: {
 
 /**
  * Sortformer vs. Nemotron 3 speaker-diarization picker (macOS only -- the
- * steno-diarize sidecar does not exist elsewhere). Picking Nemotron 3
- * downloads its models before the choice is saved (see
+ * steno-diarize sidecar does not exist elsewhere). Picking an engine
+ * downloads its models first if they are missing (see
  * useSetDiarizationEngine); the trigger stays disabled and shows the pending
  * target for the whole download so a second pick cannot race it. A failed
  * download leaves the previous engine selected and says so.
+ *
+ * When the SAVED engine's models are missing -- typically Sortformer after
+ * an upgrade from a FluidAudio 0.15 build, whose cache layout the current
+ * sidecar no longer reads -- the row says so and offers a Download button,
+ * because meeting processing never downloads models and would otherwise
+ * silently fall back to channel-only labels.
  */
 export function DiarizationEngineSetting() {
   const engine = useDiarizationEngine();
   const setEngine = useSetDiarizationEngine();
+  const modelsReady = useDiarizationModelsReady(engine.data);
   const pending = setEngine.isPending;
   const value = pending ? setEngine.variables : (engine.data ?? 'sortformer');
+  const needsDownload = !pending && engine.data !== undefined && modelsReady.data === false;
   let description = t('settings.ai.diarization.description');
-  if (pending && setEngine.variables === 'nemotron3') {
-    description = t('settings.ai.diarization.downloading');
+  if (pending) {
+    description =
+      setEngine.variables === 'nemotron3'
+        ? t('settings.ai.diarization.downloading')
+        : t('settings.ai.diarization.downloadingStandard');
   } else if (setEngine.isError) {
     description = t('settings.ai.diarization.saveError');
+  } else if (needsDownload) {
+    description = t('settings.ai.diarization.modelsMissing');
   }
   return (
     <SettingRow
@@ -222,6 +236,18 @@ export function DiarizationEngineSetting() {
             style={{ color: 'var(--fg-2)' }}
             aria-hidden="true"
           />
+        )}
+        {needsDownload && (
+          <Button
+            variant="outline"
+            size="sm"
+            className={COMPACT_BTN}
+            aria-describedby="diarization-engine-description"
+            data-testid="diarization-models-download"
+            onClick={() => engine.data && setEngine.mutate(engine.data)}
+          >
+            {t('settings.ai.diarization.downloadAction')}
+          </Button>
         )}
         <Select
           value={value}

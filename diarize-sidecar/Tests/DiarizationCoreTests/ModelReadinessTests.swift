@@ -299,6 +299,52 @@ struct ModelReadinessTests {
         #expect(ModelReadiness.status(cacheDirectory: resolved).ready == true)
     }
 
+    @Test("A FluidAudio 0.15 Sortformer cache is not ready after the upgrade")
+    func preV3SortformerLayoutNeedsRedownload() throws {
+        // FluidAudio 0.15 cached Sortformer bundles directly under
+        // `sortformer/`; 0.17 reads only the rebuilt `sortformer/v3/fp16/`
+        // set (the root-level models hit a CoreML tensor bug). Existing users
+        // must re-download, so a complete old-layout cache -- in either the
+        // app cache or the legacy FluidAudio location -- must read as missing
+        // exactly the two v3 Sortformer bundles, never as ready.
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("steno-model-prev3-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appCache = ModelReadiness.cacheDirectory(environment: [:], homeDirectory: home)
+        let legacy = home
+            .appendingPathComponent("Library/Application Support/FluidAudio/Models")
+        for root in [appCache, legacy] {
+            for bundle in ["Sortformer_v2.1.mlmodelc", "SortformerNvidiaHigh_v2.mlmodelc"] {
+                let relativePath = "sortformer/\(bundle)"
+                try createCompleteBundle(
+                    at: root.appendingPathComponent(relativePath, isDirectory: true),
+                    relativePath: relativePath
+                )
+            }
+            for bundle in [
+                "speaker-diarization/pyannote_segmentation.mlmodelc",
+                "speaker-diarization/wespeaker_v2.mlmodelc",
+            ] {
+                try createCompleteBundle(
+                    at: root.appendingPathComponent(bundle, isDirectory: true),
+                    relativePath: bundle
+                )
+            }
+        }
+
+        let resolved = ModelReadiness.runtimeCacheDirectory(
+            environment: [:], homeDirectory: home
+        )
+        let result = ModelReadiness.status(cacheDirectory: resolved)
+
+        #expect(resolved.standardizedFileURL.path == appCache.standardizedFileURL.path)
+        #expect(result.ready == false)
+        #expect(result.missingModels == [
+            "sortformer/v3/fp16/Sortformer_v2.1.mlmodelc",
+            "sortformer/v3/fp16/SortformerNvidiaHigh_v2.mlmodelc",
+        ])
+    }
+
     @Test("An isolated user-data override never reads the legacy cache")
     func userDataOverrideDoesNotFallBackToLegacyCache() throws {
         let home = FileManager.default.temporaryDirectory

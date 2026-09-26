@@ -80,6 +80,10 @@ never get acoustic diarization;
 
 FluidAudio models are prepared explicitly during macOS onboarding with
 `prepare-speaker-models` and checked without writes via `speaker-model-status`.
+FluidAudio 0.17 moved the Sortformer cache to `sortformer/v3/fp16/` (a
+rebuilt model set), so an install onboarded on an older build reads as
+missing until it re-downloads; Settings -> Speaker detection shows the saved
+engine's readiness and offers that Download, since nothing else will.
 Normal meeting processing never downloads or repairs these models: the Swift
 sidecar enables FluidAudio's offline-only mode before loading them and falls
 back to channel labels when the cache is unavailable. The cache lives below
@@ -142,8 +146,9 @@ overrides an agent's own test-level defaults.
     `notifications.t2` (the notifications_enabled toggle gating the note-ready /
     silence notifications via the `shown` signal), `diarization-engine.t2` (the
     Speaker detection setting: Sortformer default, a non-default engine refused
-    while its models are missing, IPC allowlist; its UI half, the
-    download-then-save picker, is `diarization-engine.t1`), and the onboarding spec
+    while its models are missing, IPC allowlist, and a pre-0.17 Sortformer
+    cache reading as missing on macOS; its UI half, the download-then-save
+    picker and the upgrade Download action, is `diarization-engine.t1`), and the onboarding spec
     `setup-check.t2` (the setup-wizard allGood + checks contract) (all model-free,
     run in `t2-macos` /
     `t2-windows`); `transcription-pipeline.t2` and `honest-failure.t2` (tagged

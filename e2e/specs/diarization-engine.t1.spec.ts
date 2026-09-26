@@ -4,8 +4,9 @@ import { test, expect } from '../fixtures/electron';
  * T1 -- the Speaker detection picker's download-then-save interaction. The
  * backend contract (a non-default engine is refused while its models are
  * missing) is diarization-engine.t2; this pins what the user sees around it:
- * picking Nemotron 3 prepares its models and then shows it as saved, and a
- * failed download says so and leaves Standard selected. macOS-only UI.
+ * picking Nemotron 3 prepares its models and then shows it as saved, a
+ * failed download says so and leaves Standard selected, and an upgraded
+ * install whose models are missing gets a Download action. macOS-only UI.
  */
 
 async function openAiSettings(page: import('@playwright/test').Page) {
@@ -54,4 +55,27 @@ test('a failed Nemotron 3 download keeps Standard and says so', async ({ launchA
   );
   await expect(trigger).toContainText('Standard');
   await expect(trigger).toBeEnabled();
+});
+
+test('an upgraded install is offered a download for its missing Standard models', async ({
+  launchApp,
+}) => {
+  test.skip(process.platform !== 'darwin', 'speaker detection engines are macOS-only');
+  // FluidAudio 0.17 moved the Sortformer cache to sortformer/v3/fp16/, so a
+  // pre-upgrade install reads as missing until it re-downloads. Meeting
+  // processing never downloads, so this row is the visible way back.
+  const { page } = await launchApp({
+    mockIpc: true,
+    env: { STENOAI_E2E_SPEAKER_MODELS_MISSING: '1' },
+  });
+  await openAiSettings(page);
+
+  const description = page.locator('#diarization-engine-description');
+  await expect(description).toContainText('not downloaded');
+  const download = page.getByTestId('diarization-models-download');
+  await download.click();
+
+  await expect(download).toHaveCount(0);
+  await expect(description).not.toContainText('not downloaded');
+  await expect(page.getByTestId('diarization-engine-select')).toContainText('Standard');
 });
