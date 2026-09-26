@@ -244,8 +244,14 @@ public enum ModelReadiness {
 
     static func requiredArtifactRelativePaths(for relativePath: String) -> [String] {
         if relativePath.hasPrefix("sortformer/") {
+            // FluidAudio 0.17's v3/fp16 bundles have no metadata.json;
+            // older root-level bundles do. Requiring it here leaves a fully
+            // downloaded v3 cache permanently marked unready.
+            let metadata = relativePath.hasPrefix("sortformer/v3/fp16/")
+                ? [] : ["metadata.json"]
             return [
-                "coremldata.bin", "metadata.json",
+                "coremldata.bin",
+            ] + metadata + [
                 "model0/model.mil", "model0/weights/0-weight.bin",
                 "model1/model.mil", "model1/weights/1-weight.bin",
             ]

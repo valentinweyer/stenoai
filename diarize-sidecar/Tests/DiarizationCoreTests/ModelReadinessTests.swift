@@ -7,9 +7,9 @@ import Testing
 struct ModelReadinessTests {
     private func expectedArtifacts(for relativePath: String) -> [String] {
         if relativePath.hasPrefix("sortformer/") {
-            return [
-                "coremldata.bin",
-                "metadata.json",
+            let metadata = relativePath.hasPrefix("sortformer/v3/fp16/")
+                ? [] : ["metadata.json"]
+            return ["coremldata.bin"] + metadata + [
                 "model0/model.mil",
                 "model0/weights/0-weight.bin",
                 "model1/model.mil",
@@ -62,7 +62,7 @@ struct ModelReadinessTests {
     @Test("Readiness paths match FluidAudio's cache folders")
     func cacheFolderContract() {
         let sortformerArtifacts = [
-            "coremldata.bin", "metadata.json", "model0/model.mil",
+            "coremldata.bin", "model0/model.mil",
             "model0/weights/0-weight.bin", "model1/model.mil",
             "model1/weights/1-weight.bin",
         ]
@@ -81,6 +81,9 @@ struct ModelReadinessTests {
         #expect(ModelReadiness.requiredArtifactRelativePaths(
             for: "sortformer/v3/fp16/SortformerNvidiaHigh_v2.mlmodelc"
         ) == sortformerArtifacts)
+        #expect(ModelReadiness.requiredArtifactRelativePaths(
+            for: "sortformer/Sortformer_v2.1.mlmodelc"
+        ) == ["coremldata.bin", "metadata.json"] + sortformerArtifacts.dropFirst())
         #expect(ModelReadiness.requiredArtifactRelativePaths(
             for: "speaker-diarization/pyannote_segmentation.mlmodelc"
         ) == diarizerArtifacts)
@@ -190,7 +193,7 @@ struct ModelReadinessTests {
         let model = root.appendingPathComponent(
             ModelReadiness.requiredModelRelativePaths[0], isDirectory: true
         )
-        let artifact = model.appendingPathComponent("metadata.json")
+        let artifact = model.appendingPathComponent("model0/model.mil")
         try FileManager.default.removeItem(at: artifact)
         try FileManager.default.createDirectory(at: artifact, withIntermediateDirectories: true)
 
@@ -209,8 +212,8 @@ struct ModelReadinessTests {
         let model = root.appendingPathComponent(
             ModelReadiness.requiredModelRelativePaths[0], isDirectory: true
         )
-        let artifact = model.appendingPathComponent("metadata.json")
-        let target = root.appendingPathComponent("shared-metadata.json")
+        let artifact = model.appendingPathComponent("model0/model.mil")
+        let target = root.appendingPathComponent("shared-model.mil")
         try Data([0x01]).write(to: target)
         try FileManager.default.removeItem(at: artifact)
         try FileManager.default.createSymbolicLink(at: artifact, withDestinationURL: target)
@@ -264,7 +267,7 @@ struct ModelReadinessTests {
         let partial = root.appendingPathComponent(
             ModelReadiness.requiredModelRelativePaths[0], isDirectory: true
         )
-        try FileManager.default.removeItem(at: partial.appendingPathComponent("metadata.json"))
+        try FileManager.default.removeItem(at: partial.appendingPathComponent("model0/model.mil"))
 
         let result = ModelReadiness.status(cacheDirectory: root)
 

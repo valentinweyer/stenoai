@@ -156,3 +156,36 @@ test('a Sortformer cache from before the FluidAudio 0.17 upgrade reads as missin
   // pinned with its host probes mocked in tests/test_setup_check_cli.py
   // (test_missing_optional_speaker_models_are_a_warning), not here.
 });
+
+test('downloaded FluidAudio 0.17 Sortformer bundles are ready without metadata.json', async ({
+  launchApp,
+  userDataDir,
+}) => {
+  test.skip(process.platform !== 'darwin', 'the steno-diarize sidecar is macOS-only');
+  // The published v3/fp16 bundles contain coremldata.bin and the two
+  // submodels, but no metadata.json. Readiness must accept that layout.
+  const cache = path.join(userDataDir, 'models', 'speaker-diarization');
+  const sortformerArtifacts = [
+    'coremldata.bin',
+    'model0/model.mil',
+    'model0/weights/0-weight.bin',
+    'model1/model.mil',
+    'model1/weights/1-weight.bin',
+  ];
+  for (const bundle of ['Sortformer_v2.1.mlmodelc', 'SortformerNvidiaHigh_v2.mlmodelc']) {
+    seedBundle(path.join(cache, 'sortformer', 'v3', 'fp16', bundle), sortformerArtifacts);
+  }
+  const embeddingArtifacts = ['coremldata.bin', 'metadata.json', 'model.mil', 'weights/weight.bin'];
+  for (const bundle of ['pyannote_segmentation.mlmodelc', 'wespeaker_v2.mlmodelc']) {
+    seedBundle(path.join(cache, 'speaker-diarization', bundle), embeddingArtifacts);
+  }
+  const { page } = await launchApp({ env: { STENOAI_DIARIZE_MODEL_DIR: '' } });
+  const status = await page.evaluate(() =>
+    (window as StenoWindow).stenoai.setup.speakerModelsStatus('sortformer'),
+  );
+  test.skip(
+    status.error === 'Speaker diarization is unavailable on this system',
+    'steno-diarize is not bundled in this backend build',
+  );
+  expect(status).toMatchObject({ success: true, ready: true, missing_models: [] });
+});
