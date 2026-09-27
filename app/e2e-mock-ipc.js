@@ -654,11 +654,15 @@ function install({ ipcMain }) {
       return { success: true, engine };
     },
 
-    'get-diarization-engine': async () => ({
-      success: true,
-      engine: state.diarizationEngine,
-      valid_engines: ['sortformer', 'nemotron3'],
-    }),
+    'get-diarization-engine': async () => (
+      process.env.STENOAI_E2E_DIARIZATION_ENGINE_READ_FAILURE === '1'
+        ? { success: false, error: 'synthetic speaker detection setting read failure' }
+        : {
+            success: true,
+            engine: state.diarizationEngine,
+            valid_engines: ['sortformer', 'nemotron3'],
+          }
+    ),
     'set-diarization-engine': async (_event, engine) => {
       state.diarizationEngine = engine;
       return { success: true, engine };
@@ -1012,24 +1016,19 @@ function install({ ipcMain }) {
       return { success: true, message: 'Parakeet model ready' };
     },
     // Like the real CLI, no engine argument means the saved engine.
-    'speaker-model-status': async (_event, engine) => (
-      process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1' ||
-      state.speakerModelsMissing.has(engine || state.diarizationEngine)
-        ? {
-            success: true,
-            ready: false,
-            cache_directory: '/tmp/e2e/models/speaker-diarization',
-            required_models: ['model'],
-            missing_models: ['model'],
-          }
-        : {
-            success: true,
-            ready: true,
-            cache_directory: '/tmp/e2e/models/speaker-diarization',
-            required_models: [],
-            missing_models: [],
-          }
-    ),
+    'speaker-model-status': async (_event, engine) => {
+      if (process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1') {
+        return { success: false, ready: false, error: 'synthetic model status failure' };
+      }
+      const missing = state.speakerModelsMissing.has(engine || state.diarizationEngine);
+      return {
+        success: true,
+        ready: !missing,
+        cache_directory: '/tmp/e2e/models/speaker-diarization',
+        required_models: missing ? ['model'] : [],
+        missing_models: missing ? ['model'] : [],
+      };
+    },
     'setup-speaker-models': async (_event, engine) => {
       if (process.env.STENOAI_E2E_SPEAKER_MODEL_FAILURE === '1') {
         return { success: false, error: 'synthetic model setup failure' };

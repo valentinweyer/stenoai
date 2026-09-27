@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 const diarization = vi.hoisted(() => ({
-  engine: { data: 'sortformer' as string | undefined },
+  engine: { data: 'sortformer' as string | undefined, isError: false, refetch: vi.fn() },
   modelsReady: { data: true as boolean | null | undefined },
   mutation: {
     mutate: vi.fn(),
@@ -45,7 +45,7 @@ describe('Speaker identification setting', () => {
 
 describe('Speaker detection setting', () => {
   beforeEach(() => {
-    diarization.engine = { data: 'sortformer' };
+    diarization.engine = { data: 'sortformer', isError: false, refetch: vi.fn() };
     diarization.modelsReady = { data: true };
     diarization.mutation = {
       mutate: vi.fn(),
@@ -69,6 +69,17 @@ describe('Speaker detection setting', () => {
     expect(trigger.textContent).toContain('Standard');
     expect((trigger as HTMLButtonElement).disabled).toBe(false);
     expect(text.trim().length).toBeGreaterThan(0);
+  });
+
+  test('explains a failed setting read and retries it', () => {
+    diarization.engine = { data: undefined, isError: true, refetch: vi.fn() };
+    render(<DiarizationEngineSetting />);
+
+    const { trigger, text } = describedText();
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    expect(text).toContain('Could not load the speaker detection setting');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(diarization.engine.refetch).toHaveBeenCalledOnce();
   });
 
   test('locks the picker and says so while Nemotron 3 downloads', () => {
@@ -95,7 +106,7 @@ describe('Speaker detection setting', () => {
     render(<DiarizationEngineSetting />);
 
     const { text } = describedText();
-    expect(text).toContain('need to be downloaded');
+    expect(text).toContain('models are unavailable');
     const download = screen.getByRole('button', { name: 'Download' });
     expect(download.getAttribute('aria-describedby')).toBe('diarization-engine-description');
     fireEvent.click(download);

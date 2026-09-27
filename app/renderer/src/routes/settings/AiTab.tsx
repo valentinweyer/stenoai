@@ -211,13 +211,16 @@ export function DiarizationEngineSetting() {
   const modelsReady = useDiarizationModelsReady(engine.data);
   const pending = setEngine.isPending;
   const value = pending ? setEngine.variables : (engine.data ?? 'sortformer');
-  const needsDownload = !pending && engine.data !== undefined && modelsReady.data === false;
+  const needsDownload =
+    !pending && !engine.isError && engine.data !== undefined && modelsReady.data === false;
   let description = t('settings.ai.diarization.description');
   if (pending) {
     description =
       setEngine.variables === 'nemotron3'
         ? t('settings.ai.diarization.downloading')
         : t('settings.ai.diarization.downloadingStandard');
+  } else if (engine.isError) {
+    description = t('settings.ai.diarization.loadError');
   } else if (setEngine.isError) {
     // A failed Download re-prepares the engine already saved -- nothing was
     // switched, so "the previous model is still active" would be wrong.
@@ -235,6 +238,18 @@ export function DiarizationEngineSetting() {
       descriptionId="diarization-engine-description"
     >
       <div className="flex items-center gap-2">
+        {engine.isError && (
+          <Button
+            variant="outline"
+            size="sm"
+            className={COMPACT_BTN}
+            aria-describedby="diarization-engine-description"
+            data-testid="diarization-engine-retry"
+            onClick={() => void engine.refetch()}
+          >
+            {t('settings.ai.diarization.retryAction')}
+          </Button>
+        )}
         {pending && (
           <Loader2
             className="h-4 w-4 animate-spin"
@@ -257,7 +272,7 @@ export function DiarizationEngineSetting() {
         <Select
           value={value}
           onValueChange={(v) => setEngine.mutate(v as DiarizationEngine)}
-          disabled={engine.data === undefined || pending}
+          disabled={engine.data === undefined || engine.isError || pending}
         >
           <SelectTrigger
             className={COMPACT_TRIGGER}

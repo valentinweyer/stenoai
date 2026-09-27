@@ -47,6 +47,13 @@ test('a failed Nemotron 3 download keeps Standard and says so', async ({ launchA
     env: { STENOAI_E2E_SPEAKER_MODEL_FAILURE: '1' },
   });
   await openAiSettings(page);
+  const status = await page.evaluate(() =>
+    (window as unknown as {
+      stenoai: { setup: { speakerModelsStatus: (engine: string) => Promise<unknown> } };
+    }).stenoai.setup.speakerModelsStatus('nemotron3'),
+  );
+  expect(status).toMatchObject({ success: false, ready: false, error: 'synthetic model status failure' });
+  expect(status).not.toHaveProperty('missing_models');
   await chooseNemotron(page);
 
   const trigger = page.getByTestId('diarization-engine-select');
@@ -55,6 +62,31 @@ test('a failed Nemotron 3 download keeps Standard and says so', async ({ launchA
   );
   await expect(trigger).toContainText('Standard');
   await expect(trigger).toBeEnabled();
+});
+
+test('a failed speaker detection setting read offers a retry', async ({ launchApp }) => {
+  test.skip(process.platform !== 'darwin', 'speaker detection engines are macOS-only');
+  const { app, page } = await launchApp({
+    mockIpc: true,
+    env: { STENOAI_E2E_DIARIZATION_ENGINE_READ_FAILURE: '1' },
+  });
+  await openAiSettings(page);
+
+  const trigger = page.getByTestId('diarization-engine-select');
+  const description = page.locator('#diarization-engine-description');
+  await expect(trigger).toBeDisabled();
+  await expect(description).toContainText('Could not load the speaker detection setting');
+  const retry = page.getByTestId('diarization-engine-retry');
+  await expect(retry).toBeVisible();
+
+  await app.evaluate(() => {
+    process.env.STENOAI_E2E_DIARIZATION_ENGINE_READ_FAILURE = '0';
+  });
+  await retry.click();
+  await expect(trigger).toBeEnabled();
+  await expect(trigger).toContainText('Standard');
+  await expect(description).toContainText('Runs on your device');
+  await expect(retry).toHaveCount(0);
 });
 
 test('an upgraded install is offered a download for its missing Standard models', async ({
@@ -72,7 +104,7 @@ test('an upgraded install is offered a download for its missing Standard models'
 
   const description = page.locator('#diarization-engine-description');
   const trigger = page.getByTestId('diarization-engine-select');
-  await expect(description).toContainText('need to be downloaded');
+  await expect(description).toContainText('models are unavailable');
   const download = page.getByTestId('diarization-models-download');
   await download.click();
 
